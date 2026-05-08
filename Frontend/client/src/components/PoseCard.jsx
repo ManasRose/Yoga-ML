@@ -1,108 +1,241 @@
-export default function PoseCard({ pose, onClick }) {
-  const categoryColors = {
-    standing: { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe" },
-    seated: { bg: "#f0fdf4", text: "#15803d", border: "#bbf7d0" },
-    balance: { bg: "#fdf4ff", text: "#7e22ce", border: "#e9d5ff" },
-    supine: { bg: "#fff7ed", text: "#c2410c", border: "#fed7aa" },
-    inversion: { bg: "#fff1f2", text: "#be123c", border: "#fecdd3" },
-  };
+import { useEffect, useRef } from "react";
 
-  const colors = categoryColors[pose.category] || categoryColors.standing;
+const STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display:ital@0;1&display=swap');
+
+  .pose-card {
+    background: #fff;
+    border: 1px solid #eef1ee;
+    border-radius: 16px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s ease, border-color 0.2s;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 4px rgba(45,45,45,0.05);
+  }
+
+  .pose-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(107,143,113,0.13), 0 2px 8px rgba(45,45,45,0.06);
+    border-color: rgba(107,143,113,0.35);
+  }
+
+  .pose-card-static {
+    cursor: default;
+  }
+
+  .pose-card-static:hover {
+    transform: none;
+    box-shadow: 0 1px 4px rgba(45,45,45,0.05);
+    border-color: #eef1ee;
+  }
+
+  .pose-img-wrap {
+    width: 100%;
+    aspect-ratio: 4/3;
+    background: linear-gradient(135deg, #f0f4f1 0%, #e8f0e9 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .pose-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s ease;
+  }
+
+  .pose-card:hover .pose-img-wrap img {
+    transform: scale(1.04);
+  }
+
+  .pose-img-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .pose-img-icon {
+    font-size: 2.8rem;
+    line-height: 1;
+    filter: saturate(0.7);
+  }
+
+  .pose-img-shimmer {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.4) 50%, transparent 60%);
+    background-size: 200% 100%;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .pose-card:hover .pose-img-shimmer {
+    opacity: 1;
+    animation: shimmer 0.8s ease forwards;
+  }
+
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to   { background-position: 200% 0; }
+  }
+
+  .pose-body {
+    padding: 0.9rem 1rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+  }
+
+  .pose-name {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 0.98rem;
+    color: #2D2D2D;
+    margin: 0;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+  }
+
+  .pose-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    align-self: flex-start;
+    border-radius: 999px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .pose-desc {
+    font-family: 'DM Sans', sans-serif;
+    margin: 0;
+    font-size: 0.78rem;
+    color: #8a9490;
+    line-height: 1.55;
+    font-weight: 400;
+  }
+
+  .pose-footer {
+    margin-top: auto;
+    padding-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    color: #b0bcb2;
+    letter-spacing: 0.02em;
+  }
+
+  .pose-footer-dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: #c8d4ca;
+  }
+`;
+
+const CATEGORY_STYLES = {
+  standing: { bg: "#f0f4f1", text: "#4a7c52", dot: "#6b8f71" },
+  seated: { bg: "#fdf6f2", text: "#a05c3a", dot: "#c4714a" },
+  balance: { bg: "#f5f0f8", text: "#7a5c9a", dot: "#9b7cb6" },
+  supine: { bg: "#fdf8f0", text: "#8a6c30", dot: "#d4a85a" },
+  inversion: { bg: "#f0f5f8", text: "#3a6878", dot: "#5a8fa0" },
+};
+
+const CATEGORY_ICONS = {
+  standing: "🌲",
+  seated: "🪷",
+  balance: "🌙",
+  supine: "☀️",
+  inversion: "🌊",
+};
+
+let stylesInjected = false;
+
+export default function PoseCard({ pose, onClick }) {
+  const styleRef = useRef(null);
+
+  useEffect(() => {
+    if (!stylesInjected) {
+      const el = document.createElement("style");
+      el.textContent = STYLES;
+      document.head.appendChild(el);
+      styleRef.current = el;
+      stylesInjected = true;
+    }
+  }, []);
+
+  const cat = pose.category?.toLowerCase();
+  const colors = CATEGORY_STYLES[cat] || CATEGORY_STYLES.standing;
+  const catIcon = CATEGORY_ICONS[cat] || "🧘";
 
   return (
     <div
+      className={`pose-card${!onClick ? " pose-card-static" : ""}`}
       onClick={() => onClick?.(pose)}
-      style={{
-        background: "#fff",
-        border: "1px solid #e5e7eb",
-        borderRadius: "12px",
-        padding: "1rem",
-        cursor: onClick ? "pointer" : "default",
-        transition: "border-color 0.15s, transform 0.15s",
-        display: "flex",
-        flexDirection: "column",
-        gap: "8px",
-      }}
-      onMouseEnter={(e) => {
-        if (!onClick) return;
-        e.currentTarget.style.borderColor = "#4f46e5";
-        e.currentTarget.style.transform = "translateY(-2px)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "#e5e7eb";
-        e.currentTarget.style.transform = "translateY(0)";
-      }}
     >
-      {/* Pose image or placeholder */}
-      <div
-        style={{
-          width: "100%",
-          aspectRatio: "4/3",
-          borderRadius: "8px",
-          background: "#f3f4f6",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          overflow: "hidden",
-          marginBottom: "4px",
-        }}
-      >
+      {/* Image */}
+      <div className="pose-img-wrap">
         {pose.imageUrl ? (
-          <img
-            src={pose.imageUrl}
-            alt={pose.displayName}
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
+          <img src={pose.imageUrl} alt={pose.displayName} />
         ) : (
-          <span style={{ fontSize: "2.5rem" }}>🧘</span>
+          <div className="pose-img-placeholder">
+            <span className="pose-img-icon">{catIcon}</span>
+          </div>
         )}
+        <div className="pose-img-shimmer" />
       </div>
 
-      {/* Name */}
-      <p
-        style={{
-          margin: 0,
-          fontWeight: 600,
-          fontSize: "0.95rem",
-          color: "#111827",
-        }}
-      >
-        {pose.displayName}
-      </p>
+      {/* Body */}
+      <div className="pose-body">
+        <p className="pose-name">{pose.displayName}</p>
 
-      {/* Category badge */}
-      {pose.category && (
-        <span
-          style={{
-            display: "inline-block",
-            alignSelf: "flex-start",
-            background: colors.bg,
-            color: colors.text,
-            border: `1px solid ${colors.border}`,
-            borderRadius: "999px",
-            fontSize: "0.72rem",
-            fontWeight: 500,
-            padding: "2px 10px",
-            textTransform: "capitalize",
-          }}
-        >
-          {pose.category}
-        </span>
-      )}
+        {pose.category && (
+          <span
+            className="pose-badge"
+            style={{ background: colors.bg, color: colors.text }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: colors.dot,
+                display: "inline-block",
+                flexShrink: 0,
+              }}
+            />
+            {pose.category}
+          </span>
+        )}
 
-      {/* Description if present */}
-      {pose.description && (
-        <p
-          style={{
-            margin: 0,
-            fontSize: "0.8rem",
-            color: "#6b7280",
-            lineHeight: 1.5,
-          }}
-        >
-          {pose.description}
-        </p>
-      )}
+        {pose.description && <p className="pose-desc">{pose.description}</p>}
+
+        {(pose.sanskritName || pose.difficulty) && (
+          <div className="pose-footer">
+            {pose.sanskritName && <span>{pose.sanskritName}</span>}
+            {pose.sanskritName && pose.difficulty && (
+              <div className="pose-footer-dot" />
+            )}
+            {pose.difficulty && (
+              <span style={{ textTransform: "capitalize" }}>
+                {pose.difficulty}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
