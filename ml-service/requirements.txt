@@ -5,4 +5,5 @@ mediapipe==0.10.21
 scikit-learn==1.7.2
 joblib
 numpy
+requests
 gunicorn
