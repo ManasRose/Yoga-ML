@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const ML_SERVICE = process.env.ML_SERVICE_URL || "http://localhost:5001";
+const ML_SERVICE =
+  process.env.ML_SERVICE_URL || "https://yoga-ml-service.onrender.com";
 
 export const analyseFrame = async (req, res) => {
   try {
