@@ -5,6 +5,7 @@ import CorrectionPanel from "../components/CorrectionPanel";
 import PoseSelector from "../components/PoseSelector";
 
 const FRAME_INTERVAL_MS = 600;
+const DISPLAY_THROTTLE_MS = 3500; // panel updates every 3.5 s
 
 /* ─── keyframes ─────────────────────────────────────────────────────────── */
 const css = `
@@ -15,32 +16,30 @@ const css = `
     to   { opacity: 1; transform: translateY(0); }
   }
   @keyframes pulse-ring {
-    0%   { transform: scale(1);   opacity: 0.6; }
-    70%  { transform: scale(1.55); opacity: 0; }
-    100% { transform: scale(1.55); opacity: 0; }
+    0%   { transform: scale(1);    opacity: 0.6; }
+    70%  { transform: scale(1.55); opacity: 0;   }
+    100% { transform: scale(1.55); opacity: 0;   }
   }
   @keyframes breathe {
-    0%, 100% { opacity: 0.35; transform: scale(1); }
+    0%, 100% { opacity: 0.35; transform: scale(1);    }
     50%       { opacity: 0.65; transform: scale(1.04); }
   }
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
+  @keyframes spin    { to { transform: rotate(360deg); } }
   @keyframes slideIn {
     from { opacity: 0; transform: translateX(12px); }
-    to   { opacity: 1; transform: translateX(0); }
+    to   { opacity: 1; transform: translateX(0);    }
   }
 
   .live-start-btn {
-    transition: background 0.2s ease, transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s ease;
+    transition: background 0.2s ease,
+                transform  0.2s cubic-bezier(0.34,1.56,0.64,1),
+                box-shadow 0.2s ease;
   }
   .live-start-btn:hover {
-    transform: translateY(-2px);
+    transform:  translateY(-2px);
     box-shadow: 0 8px 24px rgba(107,143,113,0.30);
   }
-  .live-stop-btn {
-    transition: background 0.2s ease, transform 0.2s ease;
-  }
+  .live-stop-btn { transition: background 0.2s ease, transform 0.2s ease; }
   .live-stop-btn:hover {
     background: #a85a36 !important;
     transform: translateY(-1px);
@@ -159,6 +158,8 @@ export default function LiveDetect() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const intervalRef = useRef(null);
+  const lastDisplayRef = useRef(0); // ← throttle timestamp
+
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState(null);
   const [targetPose, setTargetPose] = useState("");
@@ -175,17 +176,27 @@ export default function LiveDetect() {
     async (sid) => {
       const video = videoRef.current;
       if (!video || video.readyState < 2) return;
+
       const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       canvas.getContext("2d").drawImage(video, 0, 0);
       const imageBase64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+
       try {
         const { data } = await api.post("/analyse/frame", {
           imageBase64,
           targetPose: targetPose || null,
         });
-        setResult(data);
+
+        // ── throttle panel update to every 3.5 s ──────────────────────────
+        const now = Date.now();
+        if (now - lastDisplayRef.current >= DISPLAY_THROTTLE_MS) {
+          setResult(data);
+          lastDisplayRef.current = now;
+        }
+
+        // DB record still saved every frame
         if (sid && data.label) {
           api
             .post("/records", {
@@ -214,6 +225,7 @@ export default function LiveDetect() {
       await videoRef.current.play();
       const sid = await startSession();
       setIsRunning(true);
+      lastDisplayRef.current = 0; // reset throttle on new session
       intervalRef.current = setInterval(
         () => captureAndSend(sid),
         FRAME_INTERVAL_MS,
@@ -281,7 +293,7 @@ export default function LiveDetect() {
           </h2>
         </div>
 
-        {/* ── Main two-column layout ── */}
+        {/* ── Two-column layout ── */}
         <div
           style={{
             display: "grid",
@@ -292,13 +304,9 @@ export default function LiveDetect() {
         >
           {/* ── LEFT: camera ── */}
           <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "14px",
-            }}
+            style={{ display: "flex", flexDirection: "column", gap: "14px" }}
           >
-            {/* Camera viewport */}
+            {/* Viewport */}
             <div
               style={{
                 position: "relative",
@@ -361,7 +369,7 @@ export default function LiveDetect() {
                 </div>
               )}
 
-              {/* Timer overlay */}
+              {/* Timer */}
               <div
                 style={{
                   position: "absolute",
@@ -394,7 +402,7 @@ export default function LiveDetect() {
               </div>
             )}
 
-            {/* Controls bar */}
+            {/* Controls */}
             <div
               style={{
                 display: "flex",
@@ -459,11 +467,9 @@ export default function LiveDetect() {
                 </button>
               )}
 
-              {/* Divider */}
               <div
                 style={{ width: "1px", height: "28px", background: "#EDF0EC" }}
               />
-
               <PoseSelector value={targetPose} onChange={setTargetPose} />
             </div>
 
@@ -494,10 +500,9 @@ export default function LiveDetect() {
               overflow: "hidden",
               animation: "fadeUp 0.5s ease both 0.12s",
               position: "sticky",
-              top: "76px" /* stick below navbar */,
+              top: "76px",
             }}
           >
-            {/* Panel header */}
             <div
               style={{
                 padding: "1rem 1.2rem",

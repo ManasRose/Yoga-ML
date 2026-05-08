@@ -177,3 +177,6 @@ def predict_upload():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port, debug=False)
+
+app.add_url_rule("/analyse/frame",  view_func=predict_frame,  methods=["POST"])
+app.add_url_rule("/analyse/upload", view_func=predict_upload, methods=["POST"])
