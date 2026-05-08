@@ -170,7 +170,9 @@ export default function LiveDetect() {
     const { data } = await api.post("/sessions", { title: "Live session" });
     setSessionId(data._id);
     return data._id;
-  };
+  }; // Replace your captureAndSend and startCamera functions with these:
+
+  const [mlStatus, setMlStatus] = useState("idle"); // "idle"|"waking"|"ready"|"error"
 
   const captureAndSend = useCallback(
     async (sid) => {
@@ -189,14 +191,14 @@ export default function LiveDetect() {
           targetPose: targetPose || null,
         });
 
-        // ── throttle panel update to every 3.5 s ──────────────────────────
+        setMlStatus("ready");
+
         const now = Date.now();
         if (now - lastDisplayRef.current >= DISPLAY_THROTTLE_MS) {
           setResult(data);
           lastDisplayRef.current = now;
         }
 
-        // DB record still saved every frame
         if (sid && data.label) {
           api
             .post("/records", {
@@ -209,8 +211,23 @@ export default function LiveDetect() {
             })
             .catch(() => {});
         }
-      } catch {
-        /* skip bad frames */
+      } catch (err) {
+        // Show meaningful error instead of silently swallowing
+        const msg = err.response?.data?.message || err.message || "unknown";
+        console.error("[ML] frame error:", msg, err.response?.status);
+
+        if (err.code === "ECONNABORTED" || err.message?.includes("timeout")) {
+          setMlStatus("waking");
+          setError(
+            "ML service is waking up — this takes ~30s on first use. Keep the session running.",
+          );
+        } else if (err.response?.status === 422) {
+          // No pose detected in frame — totally normal, don't show error
+          setMlStatus("ready");
+        } else {
+          setMlStatus("error");
+          setError(`ML error (${err.response?.status || "network"}): ${msg}`);
+        }
       }
     },
     [targetPose],
@@ -218,6 +235,7 @@ export default function LiveDetect() {
 
   const startCamera = async () => {
     setError("");
+    setMlStatus("waking"); // assume it needs to wake up
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       streamRef.current = stream;
@@ -225,13 +243,14 @@ export default function LiveDetect() {
       await videoRef.current.play();
       const sid = await startSession();
       setIsRunning(true);
-      lastDisplayRef.current = 0; // reset throttle on new session
+      lastDisplayRef.current = 0;
       intervalRef.current = setInterval(
         () => captureAndSend(sid),
         FRAME_INTERVAL_MS,
       );
     } catch {
       setError("Camera permission denied. Please allow camera access.");
+      setMlStatus("idle");
     }
   };
 
