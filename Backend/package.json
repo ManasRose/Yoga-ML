@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch --env-file=.env server/server.js",
-    "start": "node --env-file=.env server/server.js"
+    "start": "node server/server.js"
   },
   "dependencies": {
     "axios": "^1.7.2",
